@@ -16,13 +16,18 @@ const tabButtons = document.querySelectorAll('.tab-btn');
 const BET_MIN = 100;
 const BET_MAX = 10000000;
 const MIN_RIDES = 0; // 出走回数が1回以上(> 0)の騎手を表示
-const MODE_DEFAULTS = { years: 10, races: 100 };
+const MODE_DEFAULTS = { years: 10, races: 100, year: null };
 
 init();
 
 async function init() {
   const res = await fetch('data/races.json');
   races = await res.json();
+  if (races.length > 0) {
+    MODE_DEFAULTS.year = races[0].year;
+    periodValueInput.dataset.yearMin = races[races.length - 1].year;
+    periodValueInput.dataset.yearMax = races[0].year;
+  }
   bindEvents();
   updateOptionsForMode();
   validate();
@@ -112,7 +117,15 @@ function bindEvents() {
     validate();
   });
   periodModeInputs.forEach((el) => el.addEventListener('change', () => {
-    periodValueInput.value = MODE_DEFAULTS[getPeriodMode()];
+    const mode = getPeriodMode();
+    periodValueInput.value = MODE_DEFAULTS[mode];
+    if (mode === 'year') {
+      periodValueInput.min = periodValueInput.dataset.yearMin;
+      periodValueInput.max = periodValueInput.dataset.yearMax;
+    } else {
+      periodValueInput.min = 1;
+      periodValueInput.removeAttribute('max');
+    }
     updateOptionsForMode();
     validate();
   }));
@@ -160,6 +173,10 @@ function selectTargetRaces(mode, value, venue) {
 
   if (mode === 'races') {
     return pool.slice(0, value);
+  }
+
+  if (mode === 'year') {
+    return pool.filter((race) => race.year === value);
   }
 
   const latestYear = races[0].year;
