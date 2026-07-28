@@ -72,20 +72,27 @@ function updateJockeyOptions() {
 
 function updateVenueOptions() {
   const previousSelection = venueSelect.value;
-  const targetRaces = selectTargetRaces(getPeriodMode(), Number(periodValueInput.value) || 0);
-  const counts = countBy(targetRaces, (race) => race.venue);
+  const mode = getPeriodMode();
+  const value = Number(periodValueInput.value) || 0;
 
-  const venues = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const allVenues = Array.from(countBy(races, (race) => race.venue).keys());
+  const allCount = selectTargetRaces(mode, value).length;
 
-  venueSelect.innerHTML = `<option value="">すべての開催場（${targetRaces.length}件）</option>`;
-  for (const [venue, count] of venues) {
+  const entries = allVenues
+    .map((venue) => [venue, selectTargetRaces(mode, value, venue).length])
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  venueSelect.innerHTML = `<option value="">すべての開催場（${allCount}件）</option>`;
+  for (const [venue, count] of entries) {
     const option = document.createElement('option');
     option.value = venue;
     option.textContent = `${venue}（${count}件）`;
     venueSelect.appendChild(option);
   }
 
-  venueSelect.value = previousSelection && counts.has(previousSelection) ? previousSelection : '';
+  const stillValid = entries.some(([venue]) => venue === previousSelection);
+  venueSelect.value = stillValid ? previousSelection : '';
 }
 
 function updateOptionsForMode() {
@@ -146,16 +153,18 @@ function validate() {
   return !message;
 }
 
-function selectTargetRaces(mode, value) {
+function selectTargetRaces(mode, value, venue) {
   if (races.length === 0) return [];
 
+  const pool = venue ? races.filter((race) => race.venue === venue) : races;
+
   if (mode === 'races') {
-    return races.slice(0, value);
+    return pool.slice(0, value);
   }
 
   const latestYear = races[0].year;
   const cutoffYear = latestYear - value + 1;
-  return races.filter((race) => race.year >= cutoffYear);
+  return pool.filter((race) => race.year >= cutoffYear);
 }
 
 function runJockeySimulation() {
@@ -207,8 +216,7 @@ function runFavoriteSimulation() {
   const betAmount = Number(betAmountInput.value);
   const venue = venueSelect.value;
 
-  let targetRaces = selectTargetRaces(mode, periodValue);
-  if (venue) targetRaces = targetRaces.filter((race) => race.venue === venue);
+  const targetRaces = selectTargetRaces(mode, periodValue, venue);
 
   let bets = 0;
   let investment = 0;
