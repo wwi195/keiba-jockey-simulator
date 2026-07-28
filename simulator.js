@@ -1,12 +1,17 @@
 let races = [];
+let simMode = 'jockey';
 
 const periodModeInputs = document.querySelectorAll('input[name="period-mode"]');
 const periodValueInput = document.getElementById('period-value');
 const betAmountInput = document.getElementById('bet-amount');
+const jockeyField = document.getElementById('jockey-field');
 const jockeySelect = document.getElementById('jockey-select');
+const venueField = document.getElementById('venue-field');
+const venueSelect = document.getElementById('venue-select');
 const calcButton = document.getElementById('calc-button');
 const errorBox = document.getElementById('error-box');
 const resultBox = document.getElementById('result-box');
+const tabButtons = document.querySelectorAll('.tab-btn');
 
 const BET_MIN = 100;
 const BET_MAX = 10000000;
@@ -19,8 +24,18 @@ async function init() {
   const res = await fetch('data/races.json');
   races = await res.json();
   bindEvents();
-  updateJockeyOptions();
+  updateOptionsForMode();
   validate();
+}
+
+function countBy(targetRaces, keyFn) {
+  const counts = new Map();
+  for (const race of targetRaces) {
+    const key = keyFn(race);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return counts;
 }
 
 function countRidesByJockey(targetRaces) {
@@ -55,19 +70,58 @@ function updateJockeyOptions() {
   jockeySelect.value = eligible.includes(previousSelection) ? previousSelection : '';
 }
 
+function updateVenueOptions() {
+  const previousSelection = venueSelect.value;
+  const targetRaces = selectTargetRaces(getPeriodMode(), Number(periodValueInput.value) || 0);
+  const counts = countBy(targetRaces, (race) => race.venue);
+
+  const venues = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+
+  venueSelect.innerHTML = `<option value="">すべての開催場（${targetRaces.length}件）</option>`;
+  for (const [venue, count] of venues) {
+    const option = document.createElement('option');
+    option.value = venue;
+    option.textContent = `${venue}（${count}件）`;
+    venueSelect.appendChild(option);
+  }
+
+  venueSelect.value = previousSelection && counts.has(previousSelection) ? previousSelection : '';
+}
+
+function updateOptionsForMode() {
+  if (simMode === 'jockey') {
+    updateJockeyOptions();
+  } else {
+    updateVenueOptions();
+  }
+}
+
 function bindEvents() {
   betAmountInput.addEventListener('input', validate);
   jockeySelect.addEventListener('change', validate);
+  venueSelect.addEventListener('change', validate);
   periodValueInput.addEventListener('input', () => {
-    updateJockeyOptions();
+    updateOptionsForMode();
     validate();
   });
   periodModeInputs.forEach((el) => el.addEventListener('change', () => {
     periodValueInput.value = MODE_DEFAULTS[getPeriodMode()];
-    updateJockeyOptions();
+    updateOptionsForMode();
     validate();
   }));
-  calcButton.addEventListener('click', runSimulation);
+  tabButtons.forEach((btn) => btn.addEventListener('click', () => {
+    simMode = btn.dataset.mode;
+    tabButtons.forEach((b) => b.classList.toggle('active', b === btn));
+    jockeyField.hidden = simMode !== 'jockey';
+    venueField.hidden = simMode !== 'favorite';
+    resultBox.innerHTML = '';
+    updateOptionsForMode();
+    validate();
+  }));
+  calcButton.addEventListener('click', () => {
+    if (simMode === 'jockey') runJockeySimulation();
+    else runFavoriteSimulation();
+  });
 }
 
 function getPeriodMode() {
@@ -77,14 +131,13 @@ function getPeriodMode() {
 function validate() {
   const betAmount = Number(betAmountInput.value);
   const periodValue = Number(periodValueInput.value);
-  const jockey = jockeySelect.value;
 
   let message = '';
   if (!betAmount || betAmount < BET_MIN || betAmount > BET_MAX) {
     message = `賭け金は${BET_MIN.toLocaleString()}円〜${BET_MAX.toLocaleString()}円の範囲で入力してください`;
   } else if (!periodValue || periodValue < 1) {
     message = '期間の値は1以上を入力してください';
-  } else if (!jockey) {
+  } else if (simMode === 'jockey' && !jockeySelect.value) {
     message = '騎手を選択してください';
   }
 
@@ -105,7 +158,7 @@ function selectTargetRaces(mode, value) {
   return races.filter((race) => race.year >= cutoffYear);
 }
 
-function runSimulation() {
+function runJockeySimulation() {
   if (!validate()) return;
 
   const mode = getPeriodMode();
@@ -146,9 +199,51 @@ function runSimulation() {
   renderResult({ bets, investment, payout, wins, losses, winningRaces });
 }
 
+function runFavoriteSimulation() {
+  if (!validate()) return;
+
+  const mode = getPeriodMode();
+  const periodValue = Number(periodValueInput.value);
+  const betAmount = Number(betAmountInput.value);
+  const venue = venueSelect.value;
+
+  let targetRaces = selectTargetRaces(mode, periodValue);
+  if (venue) targetRaces = targetRaces.filter((race) => race.venue === venue);
+
+  let bets = 0;
+  let investment = 0;
+  let payout = 0;
+  let wins = 0;
+  let losses = 0;
+  const winningRaces = [];
+
+  for (const race of targetRaces) {
+    const horse = race.horses.find((h) => h.popularity === 1);
+    if (!horse) continue;
+
+    bets += 1;
+    investment += betAmount;
+
+    if (horse.position === 1) {
+      payout += betAmount * horse.odds;
+      wins += 1;
+      winningRaces.push({
+        race_name: race.race_name,
+        year: race.year,
+        horse_name: horse.name,
+        odds: horse.odds,
+      });
+    } else {
+      losses += 1;
+    }
+  }
+
+  renderResult({ bets, investment, payout, wins, losses, winningRaces });
+}
+
 function renderResult({ bets, investment, payout, wins, losses, winningRaces }) {
   if (bets === 0) {
-    resultBox.innerHTML = '<p class="no-data">指定期間中、この騎手の騎乗レースはありませんでした</p>';
+    resultBox.innerHTML = '<p class="no-data">指定条件に合うレースはありませんでした</p>';
     return;
   }
 

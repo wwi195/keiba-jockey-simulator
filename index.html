@@ -218,13 +218,39 @@
   .win-list td:last-child, .win-list th:last-child {
     font-family: "Courier New", ui-monospace, monospace;
   }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--muted);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
 </style>
 </head>
 <body>
 <main>
   <div class="silks-bar"></div>
   <h1>🐎 G1単勝購入シミュレーター</h1>
-  <p class="subtitle">過去のJRA G1レースで、指定した騎手の単勝馬券を買い続けていたらどうなったかを計算します。</p>
+  <p class="subtitle">過去のJRA G1レースで、単勝馬券を買い続けていたらどうなったかを計算します。</p>
+
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-mode="jockey">騎手シミュレーター</button>
+    <button type="button" class="tab-btn" data-mode="favorite">1番人気シミュレーター</button>
+  </div>
 
   <div class="card">
     <fieldset>
@@ -241,10 +267,17 @@
       <input type="number" id="bet-amount" min="100" max="10000000" step="100" value="10000">
     </div>
 
-    <div class="field">
+    <div class="field" id="jockey-field">
       <label for="jockey-select">騎手</label>
       <select id="jockey-select">
         <option value="">選択してください</option>
+      </select>
+    </div>
+
+    <div class="field" id="venue-field" hidden>
+      <label for="venue-select">開催場</label>
+      <select id="venue-select">
+        <option value="">すべての開催場</option>
       </select>
     </div>
 
