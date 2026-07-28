@@ -15,7 +15,7 @@ const tabButtons = document.querySelectorAll('.tab-btn');
 
 const BET_MIN = 100;
 const BET_MAX = 10000000;
-const MIN_RIDES = 10;
+const MIN_RIDES = 0; // 出走回数が1回以上(> 0)の騎手を表示
 const MODE_DEFAULTS = { years: 10, races: 100 };
 
 init();

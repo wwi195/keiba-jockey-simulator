@@ -17,6 +17,11 @@ REQUEST_INTERVAL_SEC = 0.3
 
 FULL_NAME_PATTERN = re.compile(r'<div class="Name">\s*<h1>\s*([^\n<&]+?)&nbsp;', re.S)
 
+# netkeiba側のデータ不備で、実際とは別人のjockey_idにリンクされている既知のケース。
+# 2019年エリザベス女王杯のレイホーロマンス号の騎手表示「岩崎」が、
+# 和田翼のjockey_id（01146）を指すリンクになっている（要検証・修正されない限りこのまま）。
+KNOWN_BAD_LINKS = {('01146', '岩崎')}
+
 
 def fetch_html(url: str, encoding: str) -> str:
     resp = requests.get(url, headers=HEADERS, timeout=15)
@@ -47,6 +52,9 @@ def collect_jockeys(start_year: int, end_year: int) -> dict:
             print(f'エラー: {e}')
         time.sleep(REQUEST_INTERVAL_SEC)
 
+    for jid, short in KNOWN_BAD_LINKS:
+        jockeys.get(jid, set()).discard(short)
+
     return jockeys
 
 
@@ -73,6 +81,7 @@ def resolve_full_names(jockeys: dict) -> dict:
 
 def main(start_year: int, end_year: int, reuse_full_names: bool = False):
     jockeys = collect_jockeys(start_year, end_year)
+    jockeys = {jid: shorts for jid, shorts in jockeys.items() if shorts}
 
     if reuse_full_names and os.path.exists(OUTPUT_PATH):
         with open(OUTPUT_PATH, encoding='utf-8') as f:
